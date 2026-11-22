@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversor de bases numéricas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: una columna estrecha. Controles arriba, resultado destacado, pasos numerados debajo. */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --ink: #111a2b;
+  --muted: #566178;
+  --line: #d4dae6;
+  --accent: #2748d6;
+  --accent-soft: #e1e7fb;
+  --mark: #fff0c2;
+  --markink: #6b4a00;
+  --bad: #b3261e;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1420; --surface: #171e2e; --ink: #e7ecf7; --muted: #9aa6bf; --line: #2a3550;
+    --accent: #7f9bff; --accent-soft: #1f2b52; --mark: #4a3a0e; --markink: #ffd978; --bad: #ff8a80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1420; --surface: #171e2e; --ink: #e7ecf7; --muted: #9aa6bf; --line: #2a3550;
+  --accent: #7f9bff; --accent-soft: #1f2b52; --mark: #4a3a0e; --markink: #ffd978; --bad: #ff8a80;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.5; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 56px; }
+h1 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 4px; letter-spacing: -0.01em; text-wrap: balance; }
+.lead { margin: 0 0 20px; color: var(--muted); max-width: 65ch; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+sub { font-size: 0.7em; }
+
+.controls { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+@media (max-width: 640px) { .controls { grid-template-columns: 1fr 1fr; } .controls .num { grid-column: 1 / -1; } .controls .swap { grid-row: 3; grid-column: 1 / -1; justify-self: start; } }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+input[type="text"], select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-height: 44px; }
+input[type="text"] { font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 0.02em; }
+.swap { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; min-height: 44px; padding: 0 14px; font-size: 1.1rem; }
+.swap:hover { border-color: var(--accent); color: var(--accent); }
+.under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; min-height: 1.3em; font-size: 0.82rem; color: var(--muted); }
+.under .err { color: var(--bad); font-weight: 500; }
+.under select { width: auto; min-height: 0; padding: 2px 6px; font-size: 0.82rem; margin-left: 4px; }
+.under label[hidden] { display: none; }
+
+.result { margin-top: 16px; background: var(--accent); color: #fff; border-radius: 12px; padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+:root[data-theme="dark"] .result { color: #0f1420; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .result { color: #0f1420; } }
+.result .lbl { font-size: 0.82rem; opacity: 0.85; }
+.result .val { font-family: var(--font-mono); font-size: clamp(1.4rem, 5vw, 2.2rem); font-weight: 600; overflow-wrap: anywhere; line-height: 1.2; }
+.result .grp { font-family: var(--font-mono); font-size: 0.85rem; opacity: 0.85; overflow-wrap: anywhere; }
+.copy { border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 8px; padding: 8px 14px; min-height: 40px; }
+.copy:hover { background: rgba(255, 255, 255, 0.16); }
+.all { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 12px; }
+.all div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; min-width: 0; }
+.all div.cur { border-color: var(--accent); }
+.all span { display: block; font-size: 0.74rem; color: var(--muted); }
+.all code { font-family: var(--font-mono); font-size: 0.92rem; overflow-wrap: anywhere; }
+
+.stepshead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 28px 0 10px; }
+.stepshead h2 { margin: 0; font-size: 1.2rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 8px 12px; font-size: 0.85rem; border-right: 1px solid var(--line); min-height: 40px; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0f1420; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0f1420; } }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.step .n { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--font-mono); font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.step h3 { margin: 4px 0 6px; font-size: 1rem; text-wrap: balance; }
+.step p { margin: 6px 0; color: var(--muted); font-size: 0.92rem; max-width: 65ch; }
+.step p b { color: var(--ink); font-weight: 600; }
+.tw { overflow-x: auto; margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+th { background: var(--bg); font-weight: 500; color: var(--muted); font-size: 0.76rem; text-align: right; padding: 6px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { text-align: right; padding: 5px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+tr:last-child td { border-bottom: 0; }
+td.hl { background: var(--mark); color: var(--markink); font-weight: 600; }
+.line { font-family: var(--font-mono); font-size: 0.92rem; background: var(--bg); border-radius: 8px; padding: 8px 12px; margin: 8px 0 2px; overflow-x: auto; white-space: nowrap; }
+.line .m { background: var(--mark); color: var(--markink); border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.line .big { font-weight: 600; color: var(--accent); }
+.same { margin-top: 20px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 16px; color: var(--muted); }
+@media (max-width: 480px) { .step { grid-template-columns: 1fr; } .step .n { width: 28px; height: 28px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Conversor de bases numéricas</h1>
+  <p class="lead">Convierte números, con o sin decimales, entre binario, octal, decimal y hexadecimal, y mira cómo se hace paso a paso.</p>
+
+  <div class="controls">
+    <div class="field num">
+      <label for="num">Número</label>
+      <input type="text" id="num" value="10110110.101" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" aria-describedby="hint">
+    </div>
+    <div class="field">
+      <label for="from">Está en</label>
+      <select id="from">
+        <option value="2" selected>Binario (base 2)</option>
+        <option value="8">Octal (base 8)</option>
+        <option value="10">Decimal (base 10)</option>
+        <option value="16">Hexadecimal (base 16)</option>
+      </select>
+    </div>
+    <button type="button" class="swap" id="swap" aria-label="Intercambiar: usar el resultado como número y invertir las bases" title="Intercambiar">⇄</button>
+    <div class="field">
+      <label for="to">Convertir a</label>
+      <select id="to">
+        <option value="2">Binario (base 2)</option>
+        <option value="8">Octal (base 8)</option>
+        <option value="10">Decimal (base 10)</option>
+        <option value="16" selected>Hexadecimal (base 16)</option>
+      </select>
+    </div>
+    <div class="under"><span id="hint">Dígitos válidos: 0 y 1</span><span class="err" id="err" role="alert"></span>
+      <label id="precWrap" hidden>Máx. decimales del resultado
+        <select id="prec"><option>8</option><option selected>12</option><option>16</option><option>24</option><option>32</option><option>64</option></select></label>
+    </div>
+  </div>
+
+  <div id="out"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  /* ============ Núcleo (sin DOM) ============ */
+  var SYM = "0123456789ABCDEF";
+  var NAME = { 2: "binario", 8: "octal", 10: "decimal", 16: "hexadecimal" };
+  var DIGS = { 2: "0 y 1", 8: "0 a 7", 10: "0 a 9", 16: "0 a 9 y A a F" };
+  var EXP = { 2: 1, 8: 3, 16: 4 };
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function sub(s, b) { return s + "<sub>" + b + "</sub>"; }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function sup(n) { var m = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" }; return String(n).split("").map(function (c) { return m[c]; }).join(""); }
+  function pad(s, len) { while (s.length < len) s = "0" + s; return s; }
+  function stripZeros(s) { var k = 0; while (k < s.length - 1 && s[k] === "0") k++; return s.slice(k); }
+  function stripEnd(s) { return s.replace(/0+$/, ""); }
+  function dstr(d) { return d > 9 ? SYM[d] + " (" + d + ")" : String(d); }
+  function join(I, F) { return I + (F ? "." + F : ""); }
+  /* valor numer / 10^k escrito como 0.xxx (sin ceros finales) */
+  function fracStr(numer, k) {
+    if (numer === 0n) return "0";
+    return "0." + stripEnd(pad(numer.toString(), k));
+  }
+
+  function parse(raw, base) {
+    var t = raw.trim().replace(/[\s_]+/g, "");
+    var pre = { 2: /^0b/i, 8: /^0o/i, 16: /^0x/i }[base];
+    if (pre) t = t.replace(pre, "");
+    if (!t) return { empty: true };
+    if (t.length > 129) return { err: "El número es demasiado largo (máximo 128 cifras)." };
+    if (/[-+]/.test(t)) return { err: "Solo se admiten números positivos, sin signo." };
+    var parts = t.split(/[.,]/);
+    if (parts.length > 2) return { err: "Solo puede haber un separador decimal (punto o coma)." };
+    if (!parts[0] && !(parts[1])) return { err: "Escribe al menos un dígito." };
+    function cv(str) {
+      var out = [];
+      str = str.toUpperCase();
+      for (var i = 0; i < str.length; i++) {
+        var v = SYM.indexOf(str[i]);
+        if (v < 0 || v >= base) return { err: "«" + esc(str[i]) + "» no es un dígito válido en " + NAME[base] + " (usa " + DIGS[base] + ")." };
+        out.push(v);
+      }
+      return { d: out };
+    }
+    var a = cv(parts[0]), b = cv(parts[1] || "");
+    if (a.err || b.err) return { err: a.err || b.err };
+    var I = a.d.length ? a.d : [0], F = b.d;
+    var k = 0;
+    while (k < I.length - 1 && I[k] === 0) k++;
+    I = I.slice(k);
+    var e = F.length;
+    while (e > 0 && F[e - 1] === 0) e--;
+    return { I: I, F: F.slice(0, e) };
+  }
+
+  function toBig(digits, base) {
+    var n = 0n, b = BigInt(base);
+    digits.forEach(function (d) { n = n * b + BigInt(d); });
+    return n;
+  }
+  function fromBig(n, base) {
+    if (n === 0n) return "0";
+    var s = "", b = BigInt(base);
+    while (n > 0n) { s = SYM[Number(n % b)] + s; n = n / b; }
+    return s;
+  }
+
+  /* Valor exacto: I (entero) y F (cifras decimales exactas, sin ceros finales) */
+  function toNum(P, base) {
+    var I = toBig(P.I, base), F;
+    if (!P.F.length) F = "";
+    else if (base === 10) F = P.F.join("");
+    else {
+      var ek = EXP[base] * P.F.length;
+      F = stripEnd(pad((toBig(P.F, base) * 5n ** BigInt(ek)).toString(), ek));
+    }
+    return { I: I, F: F };
+  }
+  /* Parte fraccionaria decimal -> cifras en base t (multiplicaciones sucesivas).
+     Devuelve { digits, start, cut, num }: start >= 0 si el desarrollo es periódico; cut si se corta en maxd cifras. */
+  function fracDigits(F, t, rows, maxd) {
+    var r = { digits: "", start: -1, cut: false };
+    if (!F) return r;
+    if (t === 10) { r.digits = F; return r; }
+    maxd = maxd || 12;
+    var k = F.length, den = 10n ** BigInt(k), num = BigInt(F), seen = {}, out = "", i = 0;
+    while (num > 0n) {
+      var key = num.toString();
+      if (seen[key] !== undefined) { r.start = seen[key]; r.num = fracStr(num, k); break; }
+      if (i >= maxd) { r.cut = true; break; }
+      seen[key] = i;
+      var prod = num * BigInt(t), d = Number(prod / den), rem = prod % den;
+      if (rows) rows.push([fracStr(num, k) + " × " + t, d + (rem === 0n ? "" : "." + stripEnd(pad(rem.toString(), k))), d > 9 ? d + " → " + SYM[d] : String(d)]);
+      out += SYM[d];
+      num = rem;
+      i++;
+    }
+    r.digits = out;
+    return r;
+  }
+  function fracText(r) {
+    if (r.start >= 0) return r.digits.slice(0, r.start) + "(" + r.digits.slice(r.start) + ")";
+    return r.digits + (r.cut ? "…" : "");
+  }
+  function fmtNum(N, base, maxd) { return join(fromBig(N.I, base), fracText(fracDigits(N.F, base, null, maxd))); }
+
+  function table(head, rows, hlCol) {
+    var h = "<tr>" + head.map(function (x) { return "<th>" + x + "</th>"; }).join("") + "</tr>";
+    var b = rows.map(function (r) {
+      return "<tr>" + r.map(function (c, i) { return "<td" + (i === hlCol ? ' class="hl"' : "") + ">" + c + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    return '<div class="tw"><table><thead>' + h + "</thead><tbody>" + b + "</tbody></table></div>";
+  }
+  function step(title, body) { return { title: title, body: body }; }
+
+  /* Origen -> decimal (suma de dígito × peso) */
+  function stepToDecimal(P, base, N) {
+    var I = P.I, F = P.F, L = I.length, rows = [], terms = [], iprods = [], fprods = [], e = EXP[base];
+    I.forEach(function (d, i) {
+      var p = L - 1 - i, w = BigInt(base) ** BigInt(p), pr = BigInt(d) * w;
+      rows.push([dstr(d), p, base + sup(p) + " = " + w, d + " × " + w + " = " + pr]);
+      terms.push(d + "×" + base + sup(p));
+      iprods.push(String(pr));
+    });
+    F.forEach(function (d, i) {
+      var p = i + 1, ep = e * p, f5 = 5n ** BigInt(ep);
+      var w = fracStr(f5, ep), pr = fracStr(BigInt(d) * f5, ep);
+      rows.push([dstr(d), "-" + p, base + sup("-" + p) + " = " + w, d + " × " + w + " = " + pr]);
+      terms.push(d + "×" + base + sup("-" + p));
+      fprods.push(pr);
+    });
+    var body = "<p>Cada dígito vale su valor multiplicado por la base (<b>" + base + "</b>) elevada a su posición. La posición se cuenta desde <b>0</b> en el primer dígito a la izquierda de la coma, y va creciendo hacia la izquierda; a la derecha de la coma las posiciones son <b>negativas</b> (−1, −2, −3…). Después se suman todos los productos.</p>" +
+      table(["Dígito", "Posición", "Peso", "Dígito × peso"], rows, 3);
+    if (terms.length <= 12) body += '<div class="line">' + terms.join(" + ") + "</div>";
+    body += '<div class="line">' + (F.length ? "Parte entera: " : "") + (L > 1 ? iprods.join(" + ") + " = " : "") + '<span class="big">' + N.I + "</span></div>";
+    if (F.length) {
+      body += '<div class="line">Parte fraccionaria: ' + (fprods.length > 1 && fprods.length <= 24 ? fprods.join(" + ") + " = " : "") + '<span class="big">0.' + N.F + "</span></div>" +
+        '<div class="line">' + N.I + " + 0." + N.F + ' = <span class="big">' + join(String(N.I), N.F) + "</span></div>";
+    }
+    return step("Pasar de " + NAME[base] + " a decimal", body);
+  }
+
+  /* Decimal -> base (divisiones para la parte entera, multiplicaciones para la fraccionaria) */
+  function stepFromDecimal(N, base, maxd) {
+    var rows = [], q = N.I, rems = [], b = BigInt(base);
+    if (q === 0n) { rows.push(["0 ÷ " + base, "0", "0"]); rems.push(0); }
+    while (q > 0n) {
+      var r = Number(q % b), nx = q / b;
+      rows.push([q + " ÷ " + base, String(nx), r > 9 ? r + " → " + SYM[r] : String(r)]);
+      rems.push(r);
+      q = nx;
+    }
+    var intRes = rems.slice().reverse().map(function (r) { return SYM[r]; }).join("");
+    var body = "";
+    if (N.F) body += "<p><b>Parte entera</b> (" + N.I + ")</p>";
+    body += "<p>Se divide el número entre <b>" + base + "</b> una y otra vez, quedándose con el cociente, hasta que el cociente sea <b>0</b>. Los <b>restos</b> son las cifras del resultado.</p>" +
+      table(["División", "Cociente", "Resto"], rows, 2) +
+      "<p>Se leen los restos <b>de abajo arriba</b> (el último resto es la cifra de más a la izquierda):</p>" +
+      '<div class="line">' + rems.slice().reverse().map(function (r) { return '<span class="m">' + SYM[r] + "</span>"; }).join(" ") + ' = <span class="big">' + intRes + "</span></div>";
+    if (N.F) {
+      var frows = [], fr = fracDigits(N.F, base, frows, maxd), fres = fracText(fr);
+      body += "<p><b>Parte fraccionaria</b> (0." + N.F + ")</p>" +
+        "<p>Se multiplica la parte fraccionaria por <b>" + base + "</b>. La <b>parte entera</b> del resultado es la siguiente cifra, y con la parte fraccionaria que queda se repite el proceso hasta que sea <b>0</b>. Aquí las cifras se leen <b>de arriba abajo</b>.</p>" +
+        table(["Multiplicación", "Resultado", "Cifra"], frows, 2);
+      if (fr.start >= 0) body += "<p>La parte fraccionaria <b>" + fr.num + "</b> ya había aparecido antes (fila " + (fr.start + 1) + "), así que a partir de ahí las cifras se <b>repiten sin fin</b>. El grupo que se repite se escribe entre paréntesis.</p>";
+      else if (fr.cut) body += "<p>La parte fraccionaria no llega a ser 0 en " + frows.length + " pasos, así que el resultado es <b>aproximado</b>: se corta (trunca) en " + frows.length + " cifras. Puedes cambiar el máximo de decimales.</p>";
+      body += '<div class="line">' + fres.split("").map(function (c) { return /[0-9A-F]/.test(c) ? '<span class="m">' + c + "</span>" : c; }).join(" ") + ' = <span class="big">0.' + fres + "</span></div>" +
+        '<div class="line">' + intRes + " + 0." + fres + ' = <span class="big">' + join(intRes, fres) + "</span></div>";
+    }
+    return step("Pasar de decimal a " + NAME[base], body);
+  }
+
+  /* Binario -> octal/hex agrupando bits */
+  function stepGroup(binI, binF, base) {
+    var g = base === 8 ? 3 : 4, outI = "", outF = "", rowsI = [], rowsF = [];
+    var extraI = (g - binI.length % g) % g, pI = pad(binI, binI.length + extraI);
+    for (var i = 0; i < pI.length; i += g) {
+      var gi = pI.slice(i, i + g), vi = parseInt(gi, 2);
+      rowsI.push([gi, String(vi), SYM[vi]]); outI += SYM[vi];
+    }
+    var extraF = binF ? (g - binF.length % g) % g : 0, pF = binF + "0".repeat(extraF);
+    for (var j = 0; j < pF.length; j += g) {
+      var gf = pF.slice(j, j + g), vf = parseInt(gf, 2);
+      rowsF.push([gf, String(vf), SYM[vf]]); outF += SYM[vf];
+    }
+    outF = stripEnd(outF);
+    var body = "<p>" + (base === 8 ? "Cada dígito octal equivale a <b>3 bits</b>." : "Cada dígito hexadecimal equivale a <b>4 bits</b>.") + "</p>";
+    body += "<p>" + (binF ? "<b>Parte entera:</b> " : "") + "se agrupan los bits de derecha a izquierda" + (extraI ? ", añadiendo <b>" + extraI + (extraI === 1 ? " cero" : " ceros") + "</b> a la izquierda para completar el primer grupo (<b>" + pI + "</b>)" : "") + ".</p>" +
+      table(["Grupo de bits", "Valor decimal", "Dígito " + NAME[base]], rowsI, 2);
+    if (binF) {
+      body += "<p><b>Parte fraccionaria:</b> se agrupan los bits de izquierda a derecha a partir de la coma" + (extraF ? ", añadiendo <b>" + extraF + (extraF === 1 ? " cero" : " ceros") + "</b> a la derecha para completar el último grupo (<b>" + pF + "</b>)" : "") + ".</p>" +
+        table(["Grupo de bits", "Valor decimal", "Dígito " + NAME[base]], rowsF, 2);
+    }
+    body += '<div class="line"><span class="big">' + join(outI, outF) + "</span></div>";
+    return { s: step("Agrupar los bits de " + g + " en " + g + " y pasar a " + NAME[base], body), I: outI, F: outF };
+  }
+
+  /* Octal/hex -> binario expandiendo cada dígito */
+  function stepExpand(P, base) {
+    var g = base === 8 ? 3 : 4, rowsI = [], rowsF = [], rawI = "", rawF = "";
+    P.I.forEach(function (d) { var b = pad(d.toString(2), g); rowsI.push([SYM[d], String(d), b]); rawI += b; });
+    P.F.forEach(function (d) { var b = pad(d.toString(2), g); rowsF.push([SYM[d], String(d), b]); rawF += b; });
+    var outI = stripZeros(rawI), outF = stripEnd(rawF), z = rawI.length - outI.length, zf = rawF.length - outF.length;
+    var body = "<p>Cada dígito " + NAME[base] + " se escribe con <b>" + g + " bits</b> (rellenando con ceros a la izquierda) y se juntan todos los grupos.</p>";
+    if (P.F.length) body += "<p><b>Parte entera</b></p>";
+    body += table(["Dígito", "Valor decimal", g + " bits"], rowsI, 2);
+    if (P.F.length) body += "<p><b>Parte fraccionaria</b></p>" + table(["Dígito", "Valor decimal", g + " bits"], rowsF, 2);
+    body += '<div class="line">' + rowsI.map(function (r) { return r[2]; }).join(" ") + (P.F.length ? " , " + rowsF.map(function (r) { return r[2]; }).join(" ") : "") +
+      (z || zf ? " → quitamos los ceros sobrantes (a la izquierda de la parte entera y a la derecha de la fraccionaria) → " : " = ") + '<span class="big">' + join(outI, outF) + "</span></div>";
+    return { s: step("Escribir cada dígito " + NAME[base] + " con " + g + " bits", body), I: outI, F: outF };
+  }
+
+  function groupable(a, b) { return a !== b && [2, 8, 16].indexOf(a) !== -1 && [2, 8, 16].indexOf(b) !== -1; }
+
+  function convert(P, from, to, method, maxd) {
+    var N = toNum(P, from), steps = [];
+    if (from === to) return { N: N, result: fmtNum(N, to, maxd), steps: [], same: true };
+    if (method === "grp" && groupable(from, to)) {
+      var bI, bF;
+      if (from === 2) { bI = P.I.join(""); bF = P.F.join(""); }
+      else { var e = stepExpand(P, from); steps.push(e.s); bI = e.I; bF = e.F; }
+      if (to === 2) return { N: N, result: join(bI, bF), steps: steps };
+      var gr = stepGroup(bI, bF, to);
+      steps.push(gr.s);
+      return { N: N, result: join(gr.I, gr.F), steps: steps };
+    }
+    if (from !== 10) steps.push(stepToDecimal(P, from, N));
+    if (to !== 10) steps.push(stepFromDecimal(N, to, maxd));
+    return { N: N, result: fmtNum(N, to, maxd), steps: steps };
+  }
+
+  /* ============ Interfaz ============ */
+  if (typeof document === "undefined") { return; }
+  var $ = function (id) { return document.getElementById(id); };
+  var method = "dec";
+  var lastResult = "";
+
+  function render() {
+    var from = +$("from").value, to = +$("to").value;
+    $("hint").textContent = "Dígitos válidos en " + NAME[from] + ": " + DIGS[from] + ". Decimales con punto o coma.";
+    $("err").textContent = "";
+    var p = parse($("num").value, from), out = $("out");
+    if (p.empty) { out.innerHTML = '<div class="same">Escribe un número para ver la conversión.</div>'; lastResult = ""; return; }
+    if (p.err) { $("err").innerHTML = p.err; out.innerHTML = ""; lastResult = ""; return; }
+    if (!groupable(from, to)) method = "dec";
+    var maxd = +$("prec").value || 12;
+    $("precWrap").hidden = !(from === 10 && to !== 10 && p.F.length);
+    var r = convert(p, from, to, method, maxd);
+    lastResult = r.result;
+
+    var orig = join(p.I.map(function (d) { return SYM[d]; }).join(""), p.F.map(function (d) { return SYM[d]; }).join(""));
+    var html = '<div class="result"><div><div class="lbl">' + sub(orig, from) + " en " + NAME[to] + (/…$/.test(r.result) ? " (aproximado)" : "") + '</div><div class="val">' + sub(esc(r.result), to) +
+      "</div>" + (/^[01]+(\.[01]+)?$/.test(r.result) && r.result.replace(".", "").length > 4 ? '<div class="grp">' + groupBits(r.result) + "</div>" : "") +
+      (r.result.indexOf("(") !== -1 ? '<div class="grp">Las cifras entre paréntesis se repiten sin fin.</div>' : "") +
+      (/…$/.test(r.result) ? '<div class="grp">Resultado truncado: la parte fraccionaria no termina.</div>' : "") +
+      '</div><button type="button" class="copy" id="copy">Copiar</button></div>';
+
+    html += '<div class="all">' + [2, 8, 10, 16].map(function (b) {
+      return '<div class="' + (b === to ? "cur" : "") + '"><span>' + cap(NAME[b]) + "</span><code>" + esc(fmtNum(r.N, b, maxd)) + "</code></div>";
+    }).join("") + "</div>";
+
+    html += '<div class="stepshead"><h2>Proceso paso a paso</h2>';
+    if (groupable(from, to)) {
+      html += '<div class="seg" role="group" aria-label="Método de conversión">' +
+        '<button type="button" data-m="dec" aria-pressed="' + (method === "dec") + '">Pasando por decimal</button>' +
+        '<button type="button" data-m="grp" aria-pressed="' + (method === "grp") + '">Agrupando bits</button></div>';
+    }
+    html += "</div>";
+    if (r.same) {
+      html += '<div class="same">El número ya está en ' + NAME[to] + ': no hace falta convertir nada. Prueba a cambiar «Convertir a».</div>';
+    } else {
+      html += '<ol class="steps">' + r.steps.map(function (s, i) {
+        return '<li class="step"><div class="n">' + (i + 1) + "</div><div><h3>" + s.title + "</h3>" + s.body + "</div></li>";
+      }).join("") + "</ol>";
+    }
+    out.innerHTML = html;
+  }
+
+  function groupBits(s) {
+    var parts = s.split("."), a = pad(parts[0], Math.ceil(parts[0].length / 4) * 4), o = [], f = parts[1] || "";
+    for (var i = 0; i < a.length; i += 4) o.push(a.slice(i, i + 4));
+    var res = o.join(" ");
+    if (f) {
+      var pf = f + "0".repeat((4 - f.length % 4) % 4), q = [];
+      for (var j = 0; j < pf.length; j += 4) q.push(pf.slice(j, j + 4));
+      res += " . " + q.join(" ");
+    }
+    return res;
+  }
+
+  $("num").addEventListener("input", render);
+  $("from").addEventListener("change", render);
+  $("to").addEventListener("change", render);
+  $("prec").addEventListener("change", render);
+  $("swap").addEventListener("click", function () {
+    var f = $("from").value, t = $("to").value;
+    if (lastResult) $("num").value = lastResult.replace(/[()…]/g, "");
+    $("from").value = t; $("to").value = f;
+    render();
+  });
+  $("out").addEventListener("click", function (e) {
+    var m = e.target.closest("[data-m]");
+    if (m) { method = m.getAttribute("data-m"); render(); return; }
+    var c = e.target.closest("#copy");
+    if (c && lastResult) {
+      var done = function (t) { c.textContent = t; setTimeout(function () { c.textContent = "Copiar"; }, 1500); };
+      try { navigator.clipboard.writeText(lastResult).then(function () { done("Copiado"); }, function () { done("No se pudo copiar"); }); }
+      catch (err) { done("No se pudo copiar"); }
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>
